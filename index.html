@@ -5,54 +5,80 @@
   <title>Fleet Timesheet</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: var(--tg-theme-bg-color, #f4f7f6); color: var(--tg-theme-text-color, #333); padding: 20px; margin: 0; text-align: center; }
-    h2 { margin-top: 0; color: var(--tg-theme-text-color, #1a252f); }
-    .card { background: var(--tg-theme-secondary-bg-color, #fff); border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom:15px; }
-    .btn { background-color: var(--tg-theme-button-color, #2ecc71); color: var(--tg-theme-button-text-color, #fff); border: none; padding: 14px 20px; font-size: 16px; border-radius: 8px; width: 100%; margin-top: 10px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-    .btn:active { transform: scale(0.98); }
-    .btn.checkout { background-color: #e74c3c; }
-    .btn.outline { background-color: transparent; border: 2px solid var(--tg-theme-hint-color, #ccc); color: var(--tg-theme-text-color, #333); }
-    label { display: block; text-align: left; margin-bottom: 5px; font-weight: bold; font-size: 13px; color: var(--tg-theme-hint-color, #7f8c8d); margin-top: 15px;}
-    textarea, input[type="datetime-local"] { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--tg-theme-hint-color, #ccc); background-color: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #333); box-sizing: border-box; font-family: inherit; font-size: 15px; }
-    textarea { height: 80px; resize: none; }
-    .screen { display: none; }
+    :root {
+      --app-bg: var(--tg-theme-secondary-bg-color, #f0f2f5);
+      --card-bg: var(--tg-theme-bg-color, #ffffff);
+      --text-main: var(--tg-theme-text-color, #1c1c1e);
+      --text-muted: var(--tg-theme-hint-color, #8e8e93);
+      --input-bg: var(--tg-theme-secondary-bg-color, #f2f2f7);
+      --border-color: var(--tg-theme-hint-color, #e5e5ea);
+      --primary-accent: var(--tg-theme-button-color, #007aff);
+    }
+    
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: var(--app-bg); color: var(--text-main); padding: 20px; margin: 0; text-align: center; transition: background-color 0.3s; }
+    h2 { margin-top: 0; font-weight: 700; letter-spacing: -0.5px; }
+    
+    .card { background: var(--card-bg); border-radius: 16px; padding: 24px 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.06); margin-bottom: 15px; transition: background-color 0.3s; }
+    
+    .btn { border: none; padding: 16px 20px; font-size: 16px; border-radius: 12px; width: 100%; margin-top: 12px; cursor: pointer; font-weight: 600; transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; justify-content: center; align-items: center; gap: 8px; }
+    .btn:active { transform: scale(0.96); }
+    .btn:disabled { opacity: 0.7; transform: none; cursor: not-allowed; }
+    
+    .btn-checkin { background: linear-gradient(135deg, #34c759, #28a745); color: #fff; box-shadow: 0 4px 12px rgba(52,199,89,0.25); }
+    .btn-checkout { background: linear-gradient(135deg, #ff3b30, #d70015); color: #fff; box-shadow: 0 4px 12px rgba(255,59,48,0.25); }
+    .btn-outline { background: transparent; border: 2px solid var(--border-color); color: var(--text-main); box-shadow: none; }
+    .btn-warning { background: linear-gradient(135deg, #ff9500, #e67e22); color: #fff; box-shadow: 0 4px 12px rgba(255,149,0,0.25); }
+    
+    label { display: block; text-align: left; margin-bottom: 8px; font-weight: 600; font-size: 12px; color: var(--text-muted); margin-top: 20px; text-transform: uppercase; letter-spacing: 0.5px;}
+    
+    textarea, input[type="datetime-local"] { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid transparent; background-color: var(--input-bg); color: var(--text-main); box-sizing: border-box; font-family: inherit; font-size: 15px; transition: all 0.2s; outline: none; }
+    textarea:focus, input[type="datetime-local"]:focus { border-color: var(--primary-accent); box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15); background-color: var(--card-bg); }
+    textarea { height: 90px; resize: none; }
+    
+    .warning-box { background: rgba(255, 149, 0, 0.1); border: 1px solid rgba(255, 149, 0, 0.3); color: #d97d00; border-radius: 12px; padding: 16px; text-align: left; margin-top: 10px; margin-bottom: 15px; font-size: 14px; line-height: 1.4; }
+    .warning-box strong { color: #cc7000; }
+    @media (prefers-color-scheme: dark) { .warning-box { color: #ffab40; } .warning-box strong { color: #ffb74d; } }
+
+    .screen { display: none; animation: fadeIn 0.3s ease; }
     .screen.active { display: block; }
-    .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid rgba(0,0,0,0.1); border-radius: 50%; border-top-color: var(--tg-theme-button-color, #2ecc71); animation: spin 1s ease-in-out infinite; margin-bottom: 10px;}
-    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
   </style>
 </head>
 <body>
   
   <div class="card">
       <h2 id="appTitle">ELH Timesheet</h2>
-      <p id="userInfo" style="font-size: 14px; color: var(--tg-theme-hint-color, #7f8c8d);">Initializing connection...</p>
+      <p id="userInfo" style="font-size: 14px; color: var(--text-muted);">Initializing connection...</p>
       
+      <!-- SCREEN 1: MAIN MENU -->
       <div id="main-menu" class="screen">
-          <button class="btn" onclick="handleAction('Check-In')">📍 Check-In</button>
-          <button class="btn checkout" onclick="handleAction('Check-Out')">🏁 Check-Out</button>
+          <button class="btn btn-checkin" onclick="handleAction('Check-In', this)">📍 Check-In</button>
+          <button class="btn btn-checkout" onclick="handleAction('Check-Out', this)">🏁 Check-Out</button>
       </div>
 
-      <div id="loading-view" class="screen" style="padding: 20px 0;">
-          <div class="spinner"></div>
-          <div id="loadingText" style="font-weight:bold; color: var(--tg-theme-hint-color, #7f8c8d);">Acquiring GPS...</div>
-      </div>
-
+      <!-- SCREEN 2: OUT OF BOUNDS WARNING -->
       <div id="oob-checkin-view" class="screen">
-          <h3 style="color:#e74c3c;">⚠️ Not in Yard </h3>
-          <p>You are <strong id="oobDist"></strong> meters away from the Yard.</p>
-          <button class="btn" style="background-color:#e67e22;" onclick="submitData('Check-In')">Proceed Anyway</button>
-          <button class="btn outline" onclick="showScreen('main-menu')">Cancel</button>
+          <h3 style="color:#e74c3c; margin-top:0;">⚠️ Not in Yard</h3>
+          <p style="margin-bottom: 20px;">You are <strong id="oobDist"></strong> meters away from the Yard.</p>
+          <button class="btn btn-warning" onclick="submitData('Check-In', this)">Proceed Anyway</button>
+          <button class="btn btn-outline" onclick="showScreen('main-menu')">Cancel</button>
       </div>
 
+      <!-- SCREEN 3: CHECKOUT DETAILS -->
       <div id="checkout-view" class="screen">
-          <div id="customTimeGroup" style="display:none; background: #fff3cd; padding: 12px; border-radius: 8px; border: 1px solid #ffeeba; margin-top: 10px;">
-             <p style="margin: 0 0 10px 0; font-size: 13px; color: #856404; text-align: left;"><strong>⚠️ Out of Bounds:</strong> Please enter the exact time you finished your shift.</p>
+          <div id="customTimeGroup" class="warning-box" style="display:none;">
+             <p style="margin: 0 0 10px 0;"><strong>⚠️ Not in Yard:</strong> Please enter the exact time you finished your shift.</p>
              <input type="datetime-local" id="customTime">
           </div>
+          
           <label>Shift Notes (Optional)</label>
-          <textarea id="notes" placeholder="Any issues with the truck? Traffic delays?"></textarea>
-          <button class="btn checkout" onclick="submitData('Check-Out')">Submit Check-Out</button>
-          <button class="btn outline" onclick="showScreen('main-menu')">Cancel</button>
+          <textarea id="notes" placeholder="Breaks? Shift related notes"></textarea>
+          
+          <button class="btn btn-checkout" onclick="submitData('Check-Out', this)">Submit Check-Out</button>
+          <button class="btn btn-outline" onclick="showScreen('main-menu')">Cancel</button>
       </div>
   </div>
 
@@ -62,7 +88,6 @@
     let tg = window.Telegram.WebApp;
     tg.expand(); 
     
-    // Grab variables passed in the URL by the bot
     const urlParams = new URLSearchParams(window.location.search);
     const driverTgId = urlParams.get('chatId');
     const yardLat = parseFloat(urlParams.get('lat') || 0);
@@ -93,13 +118,18 @@
       return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
     }
 
-    function handleAction(action) {
-       showScreen('loading-view');
-       document.getElementById('loadingText').innerText = 'Acquiring GPS Location...';
+    // Pass the button element so we can show a spinner inside it
+    function handleAction(action, btnElement) {
+       let originalText = btnElement.innerHTML;
+       btnElement.innerHTML = `<div class="spinner"></div> Acquiring GPS...`;
+       btnElement.disabled = true;
        
        if (navigator.geolocation) {
            navigator.geolocation.getCurrentPosition(
                (pos) => {
+                   btnElement.innerHTML = originalText;
+                   btnElement.disabled = false;
+                   
                    currentLat = pos.coords.latitude; currentLon = pos.coords.longitude;
                    let dist = getDistanceInMeters(currentLat, currentLon, yardLat, yardLon);
                    isOob = dist > radius;
@@ -108,7 +138,7 @@
                        if (isOob) {
                            document.getElementById('oobDist').innerText = Math.round(dist);
                            showScreen('oob-checkin-view');
-                       } else submitData('Check-In');
+                       } else submitData('Check-In', btnElement);
                    } else {
                        if (isOob) {
                            document.getElementById('customTimeGroup').style.display = 'block';
@@ -118,15 +148,25 @@
                        showScreen('checkout-view');
                    }
                },
-               (err) => { tg.showAlert("❌ Location access denied."); showScreen('main-menu'); },
+               (err) => { 
+                   btnElement.innerHTML = originalText;
+                   btnElement.disabled = false;
+                   tg.showAlert("❌ Location access denied."); 
+               },
                { enableHighAccuracy: true, timeout: 10000 }
            );
-       } else { tg.showAlert("❌ Geolocation not supported."); showScreen('main-menu'); }
+       } else { 
+           btnElement.innerHTML = originalText;
+           btnElement.disabled = false;
+           tg.showAlert("❌ Geolocation not supported."); 
+       }
     }
 
-function submitData(action) {
-       showScreen('loading-view');
-       document.getElementById('loadingText').innerText = 'Saving to Server...';
+    function submitData(action, btnElement) {
+       if(btnElement) {
+           btnElement.innerHTML = `<div class="spinner"></div> Saving...`;
+           btnElement.disabled = true;
+       }
        
        let payload = {
            type: "miniapp", chatId: driverTgId, action: action, lat: currentLat, lon: currentLon,
@@ -134,18 +174,17 @@ function submitData(action) {
            customTime: isOob && action === 'Check-Out' ? document.getElementById('customTime').value : null
        };
 
-       // Bypass ALL CORS and POST blockers by sending data through a clean GET URL
        let safeData = encodeURIComponent(JSON.stringify(payload));
        let finalUrl = GAS_URL + "?miniapp_data=" + safeData;
 
-       fetch(finalUrl)
-       .then(res => res.text())
+       // MAGIC BULLET: mode: 'no-cors' forces Apple devices to send the data without waiting for read permissions!
+       fetch(finalUrl, { mode: 'no-cors' })
        .then(() => {
-           tg.close(); // Instantly close the app, the Bot will handle the reply!
+           tg.close(); 
        })
        .catch(err => { 
+           if(btnElement) { btnElement.innerHTML = "Retry"; btnElement.disabled = false; }
            tg.showAlert("❌ Connection error. Please try again."); 
-           showScreen('main-menu'); 
        });
     }
   </script>

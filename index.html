@@ -134,16 +134,14 @@ function submitData(action) {
            customTime: isOob && action === 'Check-Out' ? document.getElementById('customTime').value : null
        };
 
-       // 'no-cors' forces iPhones and Androids to push the data through without triggering security blockers!
-       fetch(GAS_URL, {
-           method: 'POST',
-           mode: 'no-cors',
-           headers: { 'Content-Type': 'text/plain' },
-           body: JSON.stringify(payload)
-       })
+       // Bypass ALL CORS and POST blockers by sending data through a clean GET URL
+       let safeData = encodeURIComponent(JSON.stringify(payload));
+       let finalUrl = GAS_URL + "?miniapp_data=" + safeData;
+
+       fetch(finalUrl)
+       .then(res => res.text())
        .then(() => {
-           // Instantly close the app, the Bot will handle the reply!
-           tg.close(); 
+           tg.close(); // Instantly close the app, the Bot will handle the reply!
        })
        .catch(err => { 
            tg.showAlert("❌ Connection error. Please try again."); 

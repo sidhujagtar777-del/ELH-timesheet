@@ -124,7 +124,7 @@
        } else { tg.showAlert("❌ Geolocation not supported."); showScreen('main-menu'); }
     }
 
-    function submitData(action) {
+function submitData(action) {
        showScreen('loading-view');
        document.getElementById('loadingText').innerText = 'Saving to Server...';
        
@@ -134,15 +134,21 @@
            customTime: isOob && action === 'Check-Out' ? document.getElementById('customTime').value : null
        };
 
-       // Silent request to Google - No Telegram Banner!
+       // 'no-cors' forces iPhones and Androids to push the data through without triggering security blockers!
        fetch(GAS_URL, {
            method: 'POST',
-           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+           mode: 'no-cors',
+           headers: { 'Content-Type': 'text/plain' },
            body: JSON.stringify(payload)
        })
-       .then(res => res.text())
-       .then(() => tg.close())
-       .catch(() => { tg.showAlert("❌ Network error."); showScreen('main-menu'); });
+       .then(() => {
+           // Instantly close the app, the Bot will handle the reply!
+           tg.close(); 
+       })
+       .catch(err => { 
+           tg.showAlert("❌ Connection error. Please try again."); 
+           showScreen('main-menu'); 
+       });
     }
   </script>
 </body>

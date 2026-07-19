@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Fleet Timesheet</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: var(--tg-theme-bg-color, #f4f7f6); color: var(--tg-theme-text-color, #333); padding: 20px; margin: 0; text-align: center; }
+    h2 { margin-top: 0; color: var(--tg-theme-text-color, #1a252f); }
+    .card { background: var(--tg-theme-secondary-bg-color, #fff); border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom:15px; }
+    .btn { background-color: var(--tg-theme-button-color, #2ecc71); color: var(--tg-theme-button-text-color, #fff); border: none; padding: 14px 20px; font-size: 16px; border-radius: 8px; width: 100%; margin-top: 10px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+    .btn:active { transform: scale(0.98); }
+    .btn.checkout { background-color: #e74c3c; }
+    .btn.outline { background-color: transparent; border: 2px solid var(--tg-theme-hint-color, #ccc); color: var(--tg-theme-text-color, #333); }
+    label { display: block; text-align: left; margin-bottom: 5px; font-weight: bold; font-size: 13px; color: var(--tg-theme-hint-color, #7f8c8d); margin-top: 15px;}
+    textarea, input[type="datetime-local"] { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--tg-theme-hint-color, #ccc); background-color: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #333); box-sizing: border-box; font-family: inherit; font-size: 15px; }
+    textarea { height: 80px; resize: none; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid rgba(0,0,0,0.1); border-radius: 50%; border-top-color: var(--tg-theme-button-color, #2ecc71); animation: spin 1s ease-in-out infinite; margin-bottom: 10px;}
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  
+  <div class="card">
+      <h2 id="appTitle">Fleet Timesheet</h2>
+      <p id="userInfo" style="font-size: 14px; color: var(--tg-theme-hint-color, #7f8c8d);">Initializing connection...</p>
+      
+      <div id="main-menu" class="screen">
+          <button class="btn" onclick="handleAction('Check-In')">📍 Check-In</button>
+          <button class="btn checkout" onclick="handleAction('Check-Out')">🏁 Check-Out</button>
+      </div>
+
+      <div id="loading-view" class="screen" style="padding: 20px 0;">
+          <div class="spinner"></div>
+          <div id="loadingText" style="font-weight:bold; color: var(--tg-theme-hint-color, #7f8c8d);">Acquiring GPS...</div>
+      </div>
+
+      <div id="oob-checkin-view" class="screen">
+          <h3 style="color:#e74c3c;">⚠️ Out of Bounds</h3>
+          <p>You are <strong id="oobDist"></strong> meters away from the Yard.</p>
+          <button class="btn" style="background-color:#e67e22;" onclick="submitData('Check-In')">Proceed Anyway</button>
+          <button class="btn outline" onclick="showScreen('main-menu')">Cancel</button>
+      </div>
+
+      <div id="checkout-view" class="screen">
+          <div id="customTimeGroup" style="display:none; background: #fff3cd; padding: 12px; border-radius: 8px; border: 1px solid #ffeeba; margin-top: 10px;">
+             <p style="margin: 0 0 10px 0; font-size: 13px; color: #856404; text-align: left;"><strong>⚠️ Out of Bounds:</strong> Please enter the exact time you finished your shift.</p>
+             <input type="datetime-local" id="customTime">
+          </div>
+          <label>Shift Notes (Optional)</label>
+          <textarea id="notes" placeholder="Any issues with the truck? Traffic delays?"></textarea>
+          <button class="btn checkout" onclick="submitData('Check-Out')">Submit Check-Out</button>
+          <button class="btn outline" onclick="showScreen('main-menu')">Cancel</button>
+      </div>
+  </div>
+
+  <script>
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwgjtKbemo-ssX23F3aJ_O8I-sEDZb4AfKgapbIATcW4NrSVrPdpUa5DAnAapNZCB-p/exec"; 
+    
+    let tg = window.Telegram.WebApp;
+    tg.expand(); 
+    
+    // Grab variables passed in the URL by the bot
+    const urlParams = new URLSearchParams(window.location.search);
+    const driverTgId = urlParams.get('chatId');
+    const yardLat = parseFloat(urlParams.get('lat') || 0);
+    const yardLon = parseFloat(urlParams.get('lon') || 0);
+    const radius = parseFloat(urlParams.get('rad') || 100);
+    
+    let currentLat = null, currentLon = null;
+    let isOob = false;
+
+    window.onload = () => {
+       if (!driverTgId) {
+          document.getElementById('userInfo').innerText = "⚠️ Error: Please open inside Telegram."; return;
+       }
+       let driverName = tg.initDataUnsafe?.user?.first_name || "Driver";
+       document.getElementById('userInfo').innerText = `Connected as ${driverName}`;
+       showScreen('main-menu');
+    }
+
+    function showScreen(screenId) {
+       document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+       document.getElementById(screenId).classList.add('active');
+    }
+
+    function getDistanceInMeters(lat1, lon1, lat2, lon2) {
+      if(!lat1 || !lon1 || !lat2 || !lon2) return 999999;
+      const R = 6371e3; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+      return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+    }
+
+    function handleAction(action) {
+       showScreen('loading-view');
+       document.getElementById('loadingText').innerText = 'Acquiring GPS Location...';
+       
+       if (navigator.geolocation) {
+           navigator.geolocation.getCurrentPosition(
+               (pos) => {
+                   currentLat = pos.coords.latitude; currentLon = pos.coords.longitude;
+                   let dist = getDistanceInMeters(currentLat, currentLon, yardLat, yardLon);
+                   isOob = dist > radius;
+                   
+                   if (action === 'Check-In') {
+                       if (isOob) {
+                           document.getElementById('oobDist').innerText = Math.round(dist);
+                           showScreen('oob-checkin-view');
+                       } else submitData('Check-In');
+                   } else {
+                       if (isOob) {
+                           document.getElementById('customTimeGroup').style.display = 'block';
+                           let now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                           document.getElementById('customTime').value = now.toISOString().slice(0,16);
+                       } else document.getElementById('customTimeGroup').style.display = 'none';
+                       showScreen('checkout-view');
+                   }
+               },
+               (err) => { tg.showAlert("❌ Location access denied."); showScreen('main-menu'); },
+               { enableHighAccuracy: true, timeout: 10000 }
+           );
+       } else { tg.showAlert("❌ Geolocation not supported."); showScreen('main-menu'); }
+    }
+
+    function submitData(action) {
+       showScreen('loading-view');
+       document.getElementById('loadingText').innerText = 'Saving to Server...';
+       
+       let payload = {
+           type: "miniapp", chatId: driverTgId, action: action, lat: currentLat, lon: currentLon,
+           notes: document.getElementById('notes').value,
+           customTime: isOob && action === 'Check-Out' ? document.getElementById('customTime').value : null
+       };
+
+       // Silent request to Google - No Telegram Banner!
+       fetch(GAS_URL, {
+           method: 'POST',
+           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+           body: JSON.stringify(payload)
+       })
+       .then(res => res.text())
+       .then(() => tg.close())
+       .catch(() => { tg.showAlert("❌ Network error."); showScreen('main-menu'); });
+    }
+  </script>
+</body>
+</html>
